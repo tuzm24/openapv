@@ -618,6 +618,7 @@ int main(int argc, const char **argv)
                 frm_cnt[i]++;
             }
         }
+        print_md(mid, au_cnt);
         au_cnt++;
         oapvm_rem_all(mid); // remove all metadata for next au decoding
         fflush(stdout);

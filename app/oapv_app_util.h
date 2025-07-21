@@ -789,4 +789,56 @@ static unsigned char char_to_hex(char a)
     return ret;
 }
 
+
+#define PRINT_MODE_FUNC(a) ret = a;
+// \
+//     do{\
+// printf("Func : "#a" - ret : ");\
+// ret = a;\
+// printf("%d\n", ret);\
+// }while (0);
+#define TEST_METADATA 1
+#if TEST_METADATA
+const char* get_meta_type_str(int type)
+{
+    switch(type){
+    case OAPV_METADATA_ITU_T_T35      :  return "OAPV_METADATA_ITU_T_T35   ";
+    case OAPV_METADATA_MDCV           :  return "OAPV_METADATA_MDCV        ";
+    case OAPV_METADATA_CLL            :  return "OAPV_METADATA_CLL         ";
+    case OAPV_METADATA_FILLER         :  return "OAPV_METADATA_FILLER      ";
+    case OAPV_METADATA_USER_DEFINED   :  return "OAPV_METADATA_USER_DEFINED";
+    }
+    return "OAPV_ERR";
+
+}
+
+void print_pld(char* prefix, oapvm_payload_t *pld, int au_idx)
+{
+
+
+
+    printf("[%15s] AU_idx : %4d, gid : %4d, type : %20s(%3d), size : %10d\n",
+        prefix, au_idx, pld->group_id, get_meta_type_str(pld->type),
+        pld->type, pld->size);
+    for(int j = 0; j < pld->size; j++) {
+        printf("%x", ((unsigned char*)pld->data)[j]);
+    }
+    printf("\n");
+
+}
+
+
+void print_md(oapvm_t mid, int au_idx) {
+    int num;
+    oapvm_get_all(mid, NULL, &num);
+    oapvm_payload_t *plds = malloc(sizeof(oapvm_payload_t) * num);
+    oapvm_get_all(mid, plds, &num);
+    for(int i = 0; i < num; i++) {
+        oapvm_payload_t *pld = &plds[i];
+        print_pld("PRINT_MD", pld, au_idx);
+    }
+    free(plds);
+}
+#endif
+
 #endif /* _OAPV_APP_UTIL_H_ */
