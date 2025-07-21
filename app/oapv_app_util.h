@@ -789,4 +789,83 @@ static unsigned char char_to_hex(char a)
     return ret;
 }
 
+
+#define PRINT_MODE_FUNC(a) ret = a;
+// \
+//     do{\
+// printf("Func : "#a" - ret : ");\
+// ret = a;\
+// printf("%d\n", ret);\
+// }while (0);
+#define TEST_METADATA 1
+#if TEST_METADATA
+const char* get_meta_type_str(int type)
+{
+    switch(type){
+    case OAPV_METADATA_ITU_T_T35      :  return "OAPV_METADATA_ITU_T_T35   ";
+    case OAPV_METADATA_MDCV           :  return "OAPV_METADATA_MDCV        ";
+    case OAPV_METADATA_CLL            :  return "OAPV_METADATA_CLL         ";
+    case OAPV_METADATA_FILLER         :  return "OAPV_METADATA_FILLER      ";
+    case OAPV_METADATA_USER_DEFINED   :  return "OAPV_METADATA_USER_DEFINED";
+    }
+    return "OAPV_ERR";
+
+}
+
+void print_pld(char* prefix, oapvm_payload_t *pld, int au_idx)
+{
+    printf("[%15s] AU_idx : %4d, gid : %4d, type : %20s(%3d), size : %10d\n",
+        prefix, au_idx, pld->group_id, get_meta_type_str(pld->type),
+        pld->type, pld->size);
+    for(int j = 0; j < pld->size; j++) {
+        printf("%x", ((unsigned char*)pld->data)[j]);
+    }
+    printf("\n");
+
+}
+
+
+void print_md(oapvm_t mid, int au_idx, int pld_reversed) {
+    int num;
+    oapvm_get_all(mid, NULL, &num);
+    oapvm_payload_t *plds = malloc(sizeof(oapvm_payload_t) * num);
+    oapvm_get_all(mid, plds, &num);
+    for(int i = 0; i < num; i++) {
+        if (pld_reversed) {
+            int gid = plds[i].group_id;
+            int j = i;
+            while (i < num && gid == plds[i].group_id) ++i;
+            for (int k = i - 1; k >= j; k--) {
+                oapvm_payload_t *pld = &plds[k];
+                print_pld("PRINT_MD", pld, au_idx);
+            }
+            --i;
+        }
+        else {
+            oapvm_payload_t *pld = &plds[i];
+            print_pld("PRINT_MD", pld, au_idx);
+        }
+    }
+    const int verify_get_func = 1;
+    if (verify_get_func) {
+        void *tmp_data;
+        int t_size;
+        for (int i=0; i<num; i++) {
+            oapvm_payload_t *pld = &plds[i];
+            int ret = oapvm_get(mid, pld->group_id, pld->type, (void**)(&tmp_data), &t_size, pld->uuid);
+            if (ret) {
+                fprintf(stderr, "Error occured in metadata simulation,  code : %d\n", ret);
+                exit(1);
+            }
+            if (pld->size != t_size || tmp_data != pld->data) {
+                fprintf(stderr, "Error size code : %d\n", ret);
+                exit(1);
+            }
+
+        }
+    }
+    free(plds);
+}
+#endif
+
 #endif /* _OAPV_APP_UTIL_H_ */
