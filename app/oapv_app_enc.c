@@ -694,7 +694,7 @@ void generate_random_md(int au_idx, test_md *tmd)
         size = get_rand(16, 80);
     }
     else if(format == OAPV_METADATA_FILLER) {
-        size = get_rand(4, 80) / 4 * 4;
+        size = get_rand(0, 80);
     }
     else {
         assert(0);
@@ -709,7 +709,6 @@ void generate_random_md(int au_idx, test_md *tmd)
     if(size > 0) {
         tmd->pld->data = (unsigned char *)malloc(size);
         for(int i = 0; i < size; i++) {
-
             if (tmd->pld->type == OAPV_METADATA_FILLER)
                 ((unsigned char *)(tmd->pld->data))[i] = 0xff;
             else
