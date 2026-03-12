@@ -859,6 +859,162 @@ ERR:
     return ret;
 }
 
+#if TEST_METADATA
+
+#include <stdlib.h>
+typedef struct test_md {
+    char test_type;
+    int au_idx;
+    oapvm_payload_t *pld;
+
+}test_md;
+
+int     get_rand(int s, int e) {
+    return rand() % (e - s) + s;
+}
+void generate_random_md(int au_idx, test_md *tmd)
+{
+    const int max_meta_format = 5;
+    int meta_format[10] = { OAPV_METADATA_ITU_T_T35,
+                         OAPV_METADATA_CLL,
+                         OAPV_METADATA_MDCV,
+                         OAPV_METADATA_FILLER,
+                         OAPV_METADATA_USER_DEFINED };
+    int       format = meta_format[rand() % max_meta_format];
+    int       group_id = rand() % OAPV_MAX_NUM_METAS + 1;
+    int       size = 0;
+    if(format == OAPV_METADATA_ITU_T_T35) {
+        size = get_rand(2, 16);
+    }
+    else if(format == OAPV_METADATA_CLL) {
+        size = get_rand(4, 5);
+    }
+    else if(format == OAPV_METADATA_MDCV) {
+        size = get_rand(24, 25);
+    }
+    else if(format == OAPV_METADATA_USER_DEFINED) {
+        size = get_rand(16, 300);
+    }
+    else if(format == OAPV_METADATA_FILLER) {
+        size = get_rand(0, 80);
+    }
+    else {
+        assert(0);
+    }
+    tmd->au_idx = au_idx;
+    tmd->test_type = 'I';
+    tmd->pld = malloc(sizeof(oapvm_payload_t));
+    memset(tmd->pld, 0, sizeof(oapvm_payload_t));
+    tmd->pld->group_id = group_id;
+    tmd->pld->size = size;
+    tmd->pld->type = format;
+    if(size > 0) {
+        tmd->pld->data = (unsigned char *)malloc(size);
+        for(int i = 0; i < size; i++) {
+            if (tmd->pld->type == OAPV_METADATA_FILLER)
+                ((unsigned char *)(tmd->pld->data))[i] = 0xff;
+            else
+                ((unsigned char *)(tmd->pld->data))[i] = rand() % 256;
+        }
+        if(tmd->pld->type == OAPV_METADATA_USER_DEFINED) {
+            memcpy(tmd->pld->uuid, tmd->pld->data, 16);
+        }
+    }
+    else
+        tmd->pld->data = NULL;
+
+}
+
+int get_rand_md(oapvm_t mid, oapvm_payload_t* pld, int *num_p) {
+    int num, ret = OAPV_OK;
+    oapvm_payload_t *plds = NULL;
+    ret = oapvm_get_all(mid, NULL, &num);
+    *num_p = num;
+    if(num == 0) {
+        return OAPV_OK;
+    }
+    if(ret)
+        goto ERR;
+    plds = malloc(sizeof(oapvm_payload_t) * num);
+    ret = oapvm_get_all(mid, plds, &num);
+    if(ret)
+        goto ERR;
+    int rand_idx = rand() % num;
+    memcpy(pld, plds + rand_idx, sizeof(oapvm_payload_t));
+    if(plds)
+        free(plds);
+    return OAPV_OK;
+ERR:
+    if(plds)
+        free(plds);
+    pld = NULL;
+    return ret;
+}
+
+
+void rand_md_simulate(oapvm_t mid, int au_idx) {
+
+    int simul_num = rand() % 10;
+    int ret;
+    for(int s = 0; s < simul_num; s++) {
+
+        int             mode = rand() % 100;
+        oapvm_payload_t pld;
+        if(mode == 0) {
+            //printf("Func : oapvm_rem_all(mid);\n");
+            oapvm_rem_all(mid);
+        }
+        else if(mode < 3) {
+            int mdp_num = 0;
+            ret = get_rand_md(mid, &pld, &mdp_num);
+            if(ret)
+                goto ERR;
+            if(mdp_num != 0) {
+                //print_pld("oapvm_rem", &pld, au_idx);
+                PRINT_MODE_FUNC(oapvm_rem(mid, pld.group_id, pld.type, pld.uuid);)
+            }
+            if(ret)
+                goto ERR;
+        }
+        else if(mode < 20) {
+            int mdp_num = 0;
+            ret = get_rand_md(mid, &pld, &mdp_num);
+
+            if(ret)
+                goto ERR;
+            unsigned char *tmp_data;
+            if(mdp_num != 0) {
+                PRINT_MODE_FUNC(oapvm_get(mid, pld.group_id, pld.type, (void**)(&tmp_data), &pld.size, pld.uuid);)
+                //print_pld("oapvm_get", &pld, au_idx);
+            }
+
+            if(ret)
+                goto ERR;
+        }
+        else if(mode < 100) {
+            test_md tmd;
+            generate_random_md(au_idx, &tmd);
+            //print_pld("oapvm_set", (tmd.pld), au_idx);
+            PRINT_MODE_FUNC(oapvm_set(mid, tmd.pld->group_id, tmd.pld->type, tmd.pld->data, tmd.pld->size);)
+
+
+            if(ret)
+                goto ERR;
+            if(tmd.pld->data)
+                free((tmd.pld)->data);
+            if(tmd.pld)
+                free(tmd.pld);
+        }
+    }
+    return;
+ERR:
+    fprintf(stderr, "Error occured in metadata simulation,  code : %d\n", ret);
+    exit(ret);
+}
+
+
+#endif
+
 int main(int argc, const char **argv)
 {
     args_parser_t *args = NULL;
@@ -1174,6 +1330,10 @@ int main(int argc, const char **argv)
         if(state == STATE_ENCODING) {
             /* encoding */
             clk_beg = oapv_clk_get();
+#if TEST_METADATA
+            rand_md_simulate(mid, au_cnt);
+            print_md(mid, au_cnt, 0);
+#endif
 
             ret = oapve_encode(id, &ifrms, mid, &bitb, &stat, &rfrms);
 
@@ -1234,6 +1394,7 @@ int main(int argc, const char **argv)
                 print_stat_frms(&stat, &ifrms, &rfrms, psnr_avg);
                 frm_cnt[fidx] += 1;
             }
+
             au_cnt++;
         }
         else if(state == STATE_SKIPPING) {
